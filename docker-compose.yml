@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: freight_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-freight_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - freight_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: freight_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - freight_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: freight_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-freight_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - logs:/app/logs
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - freight_network
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Celery Worker
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: freight_celery_worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-freight_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - logs:/app/logs
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - freight_network
+    command: celery -A app.tasks.celery_app worker --loglevel=info
+
+  # Celery Beat (Scheduler)
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: ../docker/backend.Dockerfile
+    container_name: freight_celery_beat
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-freight_db}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - logs:/app/logs
+    depends_on:
+      - backend
+      - redis
+    networks:
+      - freight_network
+    command: celery -A app.tasks.celery_app beat --loglevel=info
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../docker/frontend.Dockerfile
+      args:
+        VITE_API_URL: ${API_URL:-http://localhost:8000}
+    container_name: freight_frontend
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - freight_network
+    environment:
+      - VITE_API_URL=${API_URL:-http://localhost:8000}
+    command: npm run dev -- --host 0.0.0.0
+
+  # Nginx Reverse Proxy (Production)
+  nginx:
+    image: nginx:alpine
+    container_name: freight_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/ssl:/etc/nginx/ssl:ro
+      - frontend_build:/usr/share/nginx/html
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - freight_network
+    profiles:
+      - production
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads:
+    driver: local
+  logs:
+    driver: local
+  frontend_build:
+    driver: local
+
+networks:
+  freight_network:
+    driver: bridge

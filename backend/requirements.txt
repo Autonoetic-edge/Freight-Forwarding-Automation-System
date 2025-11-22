@@ -1,0 +1,75 @@
+# FastAPI
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic[email]==2.5.0
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.13.0
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+python-decouple==3.8
+pyotp==2.9.0
+qrcode==7.4.2
+
+# Redis & Celery
+redis==5.0.1
+celery[redis]==5.3.4
+flower==2.0.1
+
+# File handling
+python-magic==0.4.27
+Pillow==10.1.0
+PyPDF2==3.0.1
+openpyxl==3.1.2
+
+# OCR
+pytesseract==0.3.10
+opencv-python-headless==4.8.1.78
+pdf2image==1.16.3
+
+# Browser Automation
+selenium==4.16.0
+undetected-chromedriver==3.5.4
+webdriver-manager==4.0.1
+
+# HTTP & Scraping
+httpx==0.25.2
+beautifulsoup4==4.12.2
+lxml==4.9.4
+
+# Email & Communications
+aiosmtplib==3.0.1
+jinja2==3.1.2
+twilio==8.11.0
+
+# Data processing
+pandas==2.1.4
+python-dateutil==2.8.2
+
+# Monitoring & Logging
+python-json-logger==2.0.7
+sentry-sdk[fastapi]==1.39.1
+
+# Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+httpx==0.25.2
+faker==20.1.0
+
+# Development
+black==23.12.0
+flake8==6.1.0
+mypy==1.7.1
+pre-commit==3.5.0
+
+# Utilities
+python-dotenv==1.0.0
+pytz==2023.3
